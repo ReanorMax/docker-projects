@@ -1,0 +1,76 @@
+version: '3'
+services:
+  zabbix-db:
+    image: postgres-timescaledb:17
+    environment:
+      POSTGRES_INITDB_ARGS: --data-checksums
+      POSTGRES_HOST_AUTH_METHOD: trust
+      TIMESCALEDB_TELEMETRY: "off"
+      POSTGRES_CONFIG_SHARED_PRELOAD_LIBRARIES: "timescaledb"
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: your_zabbix_password
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    restart: always
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:latest
+    environment:
+      POSTGRES_INITDB_ARGS: --data-checksums
+      POSTGRES_HOST_AUTH_METHOD: trust
+      TIMESCALEDB_TELEMETRY: "off"
+      POSTGRES_CONFIG_SHARED_PRELOAD_LIBRARIES: "timescaledb"
+      DB_SERVER_HOST: zabbix-db
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: your_zabbix_password
+    depends_on:
+      - zabbix-db
+    restart: always
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:latest
+    environment:
+      POSTGRES_INITDB_ARGS: --data-checksums
+      POSTGRES_HOST_AUTH_METHOD: trust
+      TIMESCALEDB_TELEMETRY: "off"
+      POSTGRES_CONFIG_SHARED_PRELOAD_LIBRARIES: "timescaledb"
+      DB_SERVER_HOST: zabbix-db
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: your_zabbix_password
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: Europe/Moscow
+    depends_on:
+      - zabbix-db
+      - zabbix-server
+    ports:
+      - "80:8080"
+    restart: always
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+      PGADMIN_CONFIG_SERVER_JSON: |
+        {
+          "Servers": {
+            "1": {
+              "Name": "Zabbix DB",
+              "Group": "Servers",
+              "Host": "zabbix-db",
+              "Port": 5432,
+              "MaintenanceDB": "zabbix",
+              "Username": "zabbix",
+              "Password": "your_zabbix_password",
+              "SSLMode": "prefer"
+            }
+          }
+        }
+    ports:
+      - "5050:80"
+    depends_on:
+      - zabbix-db
+    restart: always
